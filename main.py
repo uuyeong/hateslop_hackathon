@@ -19,6 +19,7 @@ from tool.category_router import route_to_category_agent
 from utils.json_parser import parse_learning_guide
 from utils.word_generator import save_learning_guide_to_word
 from utils.date_validator import validate_and_fix_dates
+from utils.price_fetcher import enrich_estimated_cost
 
 
 def load_env():
@@ -73,6 +74,8 @@ def create_learning_guide(topic: str, start_date: str = None) -> dict:
             parsed_guide["category"] = result.get("category", "Unknown")
             # 날짜 검증 및 수정
             parsed_guide = validate_and_fix_dates(parsed_guide)
+            # Tavily 기반 실제 비용 정보 주입
+            parsed_guide = enrich_estimated_cost(parsed_guide)
         return parsed_guide
     
     return result
