@@ -1,191 +1,246 @@
 """
-Word 파일 생성 유틸리티
-
-학습 가이드를 Word 문서로 변환하는 함수들
+Word 파일 생성 유틸리티 (카드형 디자인 + Tavily 추천 아이템)
 """
 
+import os
+import re
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Pt, RGBColor
+
+
+def add_hyperlink(paragraph, text: str, url: str, color: str = "0066CC"):
+    """Word 문단에 클릭 가능한 하이퍼링크 추가"""
+    part = paragraph.part
+    r_id = part.relate_to(
+        url,
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+        is_external=True,
+    )
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+
+    c = OxmlElement("w:color")
+    c.set(qn("w:val"), color)
+    rPr.append(c)
+
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+
+    r.append(rPr)
+
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+
+    hyperlink.append(r)
+    paragraph._p.append(hyperlink)
+    return hyperlink
+
+
+def clean_text(text: Any) -> str:
+    if not isinstance(text, str):
+        return str(text)
+    text = re.sub(r"\s*\n\s*", " ", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
+
+
+def normalize_learning_items(items: Any) -> List[str]:
+    if not isinstance(items, list):
+        return [clean_text(items)]
+
+    cleaned = []
+    for it in items:
+        if not isinstance(it, str):
+            continue
+        t = it.strip()
+        if t.startswith(("•", "-", "*")):
+            t = t[1:].strip()
+        cleaned.append(t)
+
+    if len(cleaned) > 1 and all(len(x) == 1 for x in cleaned):
+        full_text = "".join(cleaned)
+        sentences = re.split(r'(?<=[\.\?\!,])\s*', full_text)
+        return [s.strip() for s in sentences if s.strip()]
+
+    return cleaned
+
+
+def add_card_header(doc: Document, text: str, color: RGBColor = RGBColor(0, 102, 204)):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    run.font.size = Pt(20)
+    run.font.bold = True
+    run.font.color.rgb = color
+    p.paragraph_format.space_before = Pt(16)
+    p.paragraph_format.space_after = Pt(6)
+    line = doc.add_paragraph("━" * 30)
+    line.paragraph_format.space_after = Pt(14)
+    return p
+
+
+def select_recommended_items(breakdown: list, category: str):
+    if not breakdown:
+        return []
+    if category in ("Academic / STEM", "Career / Tech Skills"):
+        primary = [item for item in breakdown if item.get("type") == "books"]
+        secondary = [item for item in breakdown if item.get("type") != "books"]
+    else:
+        primary = [item for item in breakdown if item.get("type") != "books"]
+        secondary = [item for item in breakdown if item.get("type") == "books"]
+    return (primary + secondary)[:3]
 
 
 def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] = None) -> Optional[str]:
-    """
-    학습 가이드를 워드 파일로 저장
-    
-    Args:
-        guide: 학습 가이드 딕셔너리 (파싱된 JSON)
-        filename: 저장할 파일명 (None이면 자동 생성)
-    
-    Returns:
-        저장된 파일 경로 또는 None
-    """
     if "error" in guide:
         print("❌ 가이드가 생성되지 않아 워드 파일을 만들 수 없습니다.")
         return None
-    
-    # 파일명 생성
+
     if filename is None:
-        topic = guide.get('topic', '학습가이드').replace(' ', '_')
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        topic = guide.get("topic", "학습가이드").replace(" ", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{topic}_학습가이드_{timestamp}.docx"
-    
-    # 워드 문서 생성
+
     doc = Document()
-    
-    # 문서 스타일 설정
     set_document_style(doc)
-    
-    # 제목
-    title = doc.add_heading(f"{guide.get('topic', '학습 가이드')} 학습 가이드", 0)
+
+    # 표지 카드
+    title = doc.add_paragraph()
+    title_run = title.add_run(f"📘 {guide.get('topic', '학습 가이드')}")
+    title_run.font.size = Pt(32)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(0, 80, 160)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # 카테고리 정보
-    if guide.get('category'):
-        category_para = doc.add_paragraph()
-        category_para.add_run("카테고리: ").bold = True
-        category_para.add_run(guide.get('category', ''))
+
+    subtitle = doc.add_paragraph()
+    sub_run = subtitle.add_run(guide.get("category", ""))
+    sub_run.font.size = Pt(18)
+    sub_run.font.color.rgb = RGBColor(100, 100, 100)
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.add_paragraph("━" * 40).alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("")
+
+    # 학습 개요 카드
+    add_card_header(doc, "📅 학습 개요")
+    overview = [
+        f"• 학습 기간: {guide.get('start_date', 'N/A')} ~ {guide.get('end_date', 'N/A')}",
+        f"• 총 학습 일수: {guide.get('total_duration_days', 'N/A')}일",
+    ]
+    for line in overview:
+        doc.add_paragraph(line)
+    divider = doc.add_paragraph("━" * 40)
+    divider.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("")
+
+    # 비용 카드 + 추천 Item
+    cost = guide.get("estimated_cost", {})
+    if isinstance(cost, dict) and cost:
+        add_card_header(doc, "💰 예상 비용 요약")
+        doc.add_paragraph(f"• 교재: {cost.get('books', 0):,}원")
+        doc.add_paragraph(f"• 강의: {cost.get('courses', 0):,}원")
+        doc.add_paragraph(f"• 장비/기타: {cost.get('equipment', 0):,}원")
+        doc.add_paragraph(f"• 총합: {cost.get('total', 0):,}원")
+        divider = doc.add_paragraph("━" * 40)
+        divider.alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph("")
-    
-    # 기본 정보
-    info_para = doc.add_paragraph()
-    info_para.add_run("학습 기간: ").bold = True
-    info_para.add_run(f"{guide.get('start_date', 'N/A')} ~ {guide.get('end_date', 'N/A')}")
-    
-    duration_para = doc.add_paragraph()
-    duration_para.add_run("총 학습 일수: ").bold = True
-    duration_para.add_run(f"{guide.get('total_duration_days', 'N/A')}일")
-    
-    doc.add_paragraph("")  # 빈 줄
-    
-    # 예상 금액
-    if guide.get('estimated_cost'):
-        cost_para = doc.add_heading("💰 예상 비용", level=2)
-        cost = guide['estimated_cost']
-        if isinstance(cost, dict):
-            cost_list = doc.add_paragraph(f"교재: {cost.get('books', 0):,}원", style='List Bullet')
-            cost_list = doc.add_paragraph(f"강의: {cost.get('courses', 0):,}원", style='List Bullet')
-            cost_list = doc.add_paragraph(f"장비/기타: {cost.get('equipment', 0):,}원", style='List Bullet')
-            total_para = doc.add_paragraph(f"총 예상 금액: {cost.get('total', 0):,}원")
-            total_para.runs[0].bold = True
-
-
-            # uuyeong - 수정한 부분
-            if cost.get("breakdown"):
-                doc.add_paragraph("", style='Normal')
-                doc.add_paragraph("세부 비용:", style='Heading 2')
-                for item in cost["breakdown"]:
-                    price_line = doc.add_paragraph(
-                        f"{item.get('name')}: {item.get('average_price', 0):,}{item.get('currency', '원')}",
-                        style='List Bullet'
+        if cost.get("breakdown"):
+            doc.add_paragraph("")
+            doc.add_paragraph("세부 비용", style='Heading 2')
+            for item in cost["breakdown"]:
+                line = doc.add_paragraph(style="List Bullet")
+                line.add_run(f"{item.get('name')}: ").bold = True
+                line.add_run(f"{item.get('average_price', 0):,}{item.get('currency', '원')}")
+                if item.get("sources"):
+                    src = item["sources"][0]
+                    doc.add_paragraph(
+                        f"   • 출처: {src.get('title', '')} ({src.get('url', '')})",
+                        style="List Bullet 2"
                     )
-                    if item.get("sources"):
-                        for src in item["sources"]:
-                            doc.add_paragraph(
-                                f"- {src.get('title', '')}: {src.get('url', '')}",
-                                style='List Bullet 2'
-                            )
+
+            recommendations = select_recommended_items(cost["breakdown"], guide.get("category", ""))
+            if recommendations:
+                add_card_header(doc, "✨ 추천 Item")
+                for idx, rec in enumerate(recommendations, 1):
+                    para = doc.add_paragraph(f"{idx}. {rec.get('name', '추천 아이템')}")
+                    para.runs[0].bold = True
+                    para.add_run(f" - 약 {rec.get('average_price', 0):,}{rec.get('currency', '원')}")
+                    if rec.get("sources"):
+                        src = rec["sources"][0]
+                        reference = doc.add_paragraph(style="List Bullet 2")
+                        reference.add_run("참고: ")
+                        add_hyperlink(reference, src.get("title", ""), src.get("url", ""))
+
         doc.add_paragraph("")
-    
-    # 후기 요약
-    if guide.get('reviews_summary'):
-        review_heading = doc.add_heading("💬 학습자 후기 요약", level=2)
-        review_para = doc.add_paragraph(guide['reviews_summary'])
+
+    # Step 카드
+    for step in guide.get("steps", []):
         doc.add_paragraph("")
-    
-    # 각 단계별 내용
-    steps = guide.get("steps", [])
-    for step in steps:
-        # 단계 제목
-        step_title = doc.add_heading(
-            f"{step.get('step_number', 'N/A')}단계: {step.get('title', 'N/A')}", 
-            level=1
-        )
-        
-        # 기간 정보
-        period_para = doc.add_paragraph()
-        period_para.add_run(f"📅 기간: ").bold = True
-        period_para.add_run(
-            f"{step.get('start_date', 'N/A')} ~ {step.get('end_date', 'N/A')} "
-            f"({step.get('duration_days', 'N/A')}일)"
-        )
-        doc.add_paragraph("")  # 빈 줄
-        
+        doc.add_paragraph("")
+        doc.add_paragraph("")
+        step_num = step.get("step_number", 0)
+        step_title = clean_text(step.get("title", f"단계 {step_num}"))
+        add_card_header(doc, f"🔵 Step {step_num}: {step_title}")
+
+        period = doc.add_paragraph()
+        period.add_run("📅 기간: ").bold = True
+        period.add_run(f"{step.get('start_date', 'N/A')} ~ {step.get('end_date', 'N/A')} ({step.get('duration_days', 'N/A')}일)")
+
         # 학습 내용
-        if step.get("learning_content"):
-            doc.add_paragraph("📚 학습 내용:", style='Heading 2')
-            for content in step.get("learning_content", []):
-                para = doc.add_paragraph(content, style='List Bullet')
-            doc.add_paragraph("")  # 빈 줄
-        
-        # 추천 교재
-        if step.get("recommended_books"):
-            doc.add_paragraph("📖 추천 교재:", style='Heading 2')
-            for book in step.get("recommended_books", []):
-                if isinstance(book, dict):
-                    book_para = doc.add_paragraph(
-                        f"{book.get('title', 'N/A')} - {book.get('price', 0):,}원",
-                        style='List Bullet'
-                    )
-                    if book.get('reason'):
-                        reason_para = doc.add_paragraph(f"  (추천 이유: {book.get('reason')})", style='List Bullet 2')
-                else:
-                    doc.add_paragraph(str(book), style='List Bullet')
-            doc.add_paragraph("")  # 빈 줄
-        
+        contents = normalize_learning_items(step.get("learning_content", []))
+        if contents:
+            doc.add_paragraph("📚 학습 내용").bold = True
+            for item in contents:
+                doc.add_paragraph(f"• {clean_text(item)}", style="List Bullet")
+
         # 참고 사이트
-        if step.get("recommended_sites"):
-            doc.add_paragraph("🌐 참고 사이트:", style='Heading 2')
-            for site in step.get("recommended_sites", []):
-                if isinstance(site, dict):
-                    para = doc.add_paragraph()
-                    para.add_run(f"{site.get('name', 'N/A')}").bold = True
-                    para.add_run(f" ({site.get('type', '')}): ")
-                    para.add_run(site.get('url', 'N/A'))
+        sites = step.get("recommended_sites", [])
+        if sites:
+            doc.add_paragraph("🌐 참고 자료").bold = True
+            for site in sites:
+                name = clean_text(site.get("name", "")) if isinstance(site, dict) else clean_text(site)
+                url = site.get("url", "") if isinstance(site, dict) else ""
+                para = doc.add_paragraph()
+                para.add_run("🔗 ")
+                if url:
+                    add_hyperlink(para, name or url, url)
                 else:
-                    doc.add_paragraph(str(site), style='List Bullet')
-            doc.add_paragraph("")  # 빈 줄
-        
+                    para.add_run(name)
+
         # 투두리스트
-        if step.get("todos"):
-            doc.add_paragraph("✅ 투두리스트:", style='Heading 2')
-            for todo in step.get("todos", []):
-                para = doc.add_paragraph(todo, style='List Bullet')
-                # 체크박스 스타일을 위해 앞에 ☐ 추가
-            doc.add_paragraph("")  # 빈 줄
-        
-        # 단계별 예상 비용
-        if step.get("estimated_cost"):
-            step_cost_para = doc.add_paragraph()
-            step_cost_para.add_run(f"💵 단계별 예상 비용: ").bold = True
-            step_cost_para.add_run(f"{step.get('estimated_cost'):,}원")
-            doc.add_paragraph("")  # 빈 줄
-        
-        # 단계 구분선
-        doc.add_paragraph("─" * 50)
-        doc.add_paragraph("")  # 빈 줄
-    
-    # 파일 저장
+        todos = normalize_learning_items(step.get("todos", []))
+        if todos:
+            doc.add_paragraph("📝 To-do List").bold = True
+            for todo in todos:
+                doc.add_paragraph(f"☐ {clean_text(todo)}")
+
+        doc.add_paragraph("")
+
+    # 후기 카드
+    if guide.get("reviews_summary"):
+        add_card_header(doc, "📌 학습 후기 요약")
+        doc.add_paragraph(clean_text(guide["reviews_summary"]))
+
     doc.save(filename)
     print(f"✅ 워드 파일이 저장되었습니다: {filename}")
     return filename
 
 
 def set_document_style(doc: Document):
-    """문서 스타일 설정"""
-    # 기본 폰트 설정
-    style = doc.styles['Normal']
+    style = doc.styles["Normal"]
     font = style.font
-    font.name = 'Malgun Gothic'  # 한글 폰트
+    font.name = "Malgun Gothic"
     font.size = Pt(11)
-    
-    # 제목 스타일
-    heading_style = doc.styles['Heading 1']
-    heading_font = heading_style.font
-    heading_font.name = 'Malgun Gothic'
-    heading_font.bold = True
-    heading_font.size = Pt(16)
+
 

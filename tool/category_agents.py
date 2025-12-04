@@ -19,7 +19,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain import hub
 
 
-# Tavily Tool 생성 (모든 카테고리에서 공통 사용)
+# Tavily Tool 생성 (모든 카테고리에서 공통 사용)1
 def get_tavily_tool():
     """Tavily 검색 Tool 생성"""
     return TavilySearchResults(
@@ -46,23 +46,38 @@ def create_category_agent(category_name: str, category_guidelines: str) -> Agent
 
 {category_guidelines}
 
-사용자가 배우고 싶은 주제에 대해 단계별 학습 가이드를 작성해. Tavily 검색을 활용하여 최신 정보, 교재, 강의, 후기를 수집해. 교재/사이트는 가져온 언어 그대로 출력해도 되지만,  나머지 모든 내용(학습 내용, 투두리스트, 후기 요약 등)은 자연스럽고 명확한 한국어로 작성해야 한다. 특히 학습자 후기(reviews_summary)와 투두리스트는 한국어 표현으로 제공해.
+사용자가 배우고 싶은 주제에 대해 단계별 학습 가이드를 작성해. Tavily 검색을 활용하여 최신 정보, 교재, 강의, 후기를 수집해. 교재/사이트는 가져온 언어 그대로 출력해도 되지만,  나머지 모든 내용(학습 내용, 투두리스트, 후기 요약 등)은 자연스럽고 명확한 한국어로 작성해야 한다. 특히 학습자 후기(reviews_summary)와 투두리스트는 한국어 표현으로 제공해. 
+
+중요:
+- 각 단계의 학습 내용 배열에는 최소 4개의 문장을 포함하고, “왜 이 단계가 중요한지, 어떤 전략으로 학습하면 좋은지, 실전에서 바로 써먹을 수 있는 꿀팁은 무엇인지”를 구체적으로 서술해. 
+- 팁을 적을 때는 실제 상황을 가정해서 조언해(예: “주 3회 30분씩 OO 연습을 녹화해서 자세를 교정하라”, “문제풀이 후 틀린 개념을 노트에 한 줄 요약으로 정리해라”처럼).
+- 투두리스트는 최소 5개 이상, 각 항목마다 구체적인 행동과 체크 가능한 기준(예: “~ 연습 3회 반복”, “~ 작성 후 리뷰”)을 포함해 작성해. 
 
 출력 형식:
-반드시 JSON 형식으로 출력해야 해. 다음 구조를 따라야 해:
+반드시 JSON 형식으로 출력해야 해. 다음 구조를 따라야 해 (단, 추천 교재 항목은 절대 포함하지 마):
 
 1. topic: 학습 주제명
 2. category: {category_name}
 3. total_duration_days: 총 학습 일수 (숫자)
 4. start_date: 시작일 (YYYY-MM-DD 형식)
 5. end_date: 종료일 (YYYY-MM-DD 형식)
-6. estimated_cost: 비용 정보 (books, courses, equipment, total 키 포함)
-7. reviews_summary: 학습자 후기 요약 (2-3문단)
-8. steps: 단계 배열, 각 단계는 step_number, title, duration_days, start_date, end_date, learning_content, recommended_books, recommended_sites, todos, estimated_cost 포함
+6. reviews_summary: 학습자 후기 요약 (2-3문단)
+7. steps: 단계 배열, 각 단계는 step_number, title, duration_days, start_date, end_date, learning_content, recommended_sites, todos 포함 (recommended_books, estimated_cost는 포함하지 마). 추천 교재 항목은 절대 생성하지 마.
 
 각 단계는 3~6단계로 구성하고, 날짜는 연속적으로 계산해.
 
-중요: JSON 형식만 출력하고, 추가 설명이나 텍스트는 포함하지 마."""
+중요: JSON 형식만 출력하고, 추가 설명이나 텍스트는 포함하지 마.
+
+learning_content는 절대로 문장을 글자 단위로 나누지 마라.
+절대로 "•" 같은 문자도 넣지 마라.
+리스트 내부 요소는 "완전한 문장 형태"만 포함해야 한다.
+각 요소는 하나의 문장만 포함한다.
+절대로 character-level split 하지 마라.
+절대로 bullet symbol 자체를 JSON에 넣지 마라.
+문장 앞에 dash(-), asterisk(*), middle dot(·), bullet(•) 등을 넣지 마라.
+그냥 순수 문자열만 넣어라.
+
+"""
     
     # 기본 프롬프트의 메시지 구조를 가져와서 시스템 메시지만 교체
     prompt = ChatPromptTemplate.from_messages([
