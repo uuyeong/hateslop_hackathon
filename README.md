@@ -1,1 +1,1 @@
-# hateslop_hackathon
+# hateslop mini hackathon
