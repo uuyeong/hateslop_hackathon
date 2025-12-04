@@ -71,6 +71,20 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
             cost_list = doc.add_paragraph(f"장비/기타: {cost.get('equipment', 0):,}원", style='List Bullet')
             total_para = doc.add_paragraph(f"총 예상 금액: {cost.get('total', 0):,}원")
             total_para.runs[0].bold = True
+            if cost.get("breakdown"):
+                doc.add_paragraph("", style='Normal')
+                doc.add_paragraph("세부 비용:", style='Heading 2')
+                for item in cost["breakdown"]:
+                    price_line = doc.add_paragraph(
+                        f"{item.get('name')}: {item.get('average_price', 0):,}{item.get('currency', '원')}",
+                        style='List Bullet'
+                    )
+                    if item.get("sources"):
+                        for src in item["sources"]:
+                            doc.add_paragraph(
+                                f"- {src.get('title', '')}: {src.get('url', '')}",
+                                style='List Bullet 2'
+                            )
         doc.add_paragraph("")
     
     # 후기 요약
