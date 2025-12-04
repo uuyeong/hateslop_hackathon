@@ -46,6 +46,7 @@ def create_category_agent(category_name: str, category_guidelines: str) -> Agent
 
 {category_guidelines}
 
+
 사용자가 배우고 싶은 주제에 대해 단계별 학습 가이드를 작성해. Tavily 검색을 활용하여 최신 정보, 교재, 강의, 후기를 수집해.
 
 출력 형식:
@@ -62,7 +63,18 @@ def create_category_agent(category_name: str, category_guidelines: str) -> Agent
 
 각 단계는 3~6단계로 구성하고, 날짜는 연속적으로 계산해.
 
-중요: JSON 형식만 출력하고, 추가 설명이나 텍스트는 포함하지 마."""
+중요: JSON 형식만 출력하고, 추가 설명이나 텍스트는 포함하지 마.
+
+learning_content는 절대로 문장을 글자 단위로 나누지 마라.
+절대로 "•" 같은 문자도 넣지 마라.
+리스트 내부 요소는 "완전한 문장 형태"만 포함해야 한다.
+각 요소는 하나의 문장만 포함한다.
+절대로 character-level split 하지 마라.
+절대로 bullet symbol 자체를 JSON에 넣지 마라.
+문장 앞에 dash(-), asterisk(*), middle dot(·), bullet(•) 등을 넣지 마라.
+그냥 순수 문자열만 넣어라.
+
+"""
     
     # 기본 프롬프트의 메시지 구조를 가져와서 시스템 메시지만 교체
     prompt = ChatPromptTemplate.from_messages([
