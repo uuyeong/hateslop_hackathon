@@ -82,7 +82,14 @@ def print_learning_guide_summary(guide: dict):
     """학습 가이드 요약 출력"""
     if "error" in guide:
         print("\n❌ 학습 가이드 생성 실패:")
-        print(guide.get("raw_output", "알 수 없는 오류"))
+        error_msg = guide.get("error", "")
+        raw_output = guide.get("raw_output", "")
+        if error_msg:
+            print(f"오류: {error_msg}")
+        if raw_output:
+            print(f"원본 출력:\n{raw_output}")
+        if not error_msg and not raw_output:
+            print("알 수 없는 오류가 발생했습니다.")
         return
     
     print("\n" + "="*60)
