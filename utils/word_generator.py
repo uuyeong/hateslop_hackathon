@@ -85,7 +85,8 @@ def add_card_header(doc: Document, text: str, color: RGBColor = RGBColor(0, 102,
     run.font.color.rgb = color
     p.paragraph_format.space_before = Pt(16)
     p.paragraph_format.space_after = Pt(6)
-    line = doc.add_paragraph("━" * 30)
+    line = doc.add_paragraph("━" * 35)
+    line.alignment = WD_ALIGN_PARAGRAPH.CENTER
     line.paragraph_format.space_after = Pt(14)
     return p
 
@@ -129,7 +130,7 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
     sub_run.font.color.rgb = RGBColor(100, 100, 100)
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    doc.add_paragraph("━" * 40).alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph("━" * 35).alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("")
 
     # 학습 개요 카드
@@ -140,7 +141,7 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
     ]
     for line in overview:
         doc.add_paragraph(line)
-    divider = doc.add_paragraph("━" * 40)
+    divider = doc.add_paragraph("━" * 35)
     divider.alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph("")
 
@@ -152,7 +153,7 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
         doc.add_paragraph(f"• 강의: {cost.get('courses', 0):,}원")
         doc.add_paragraph(f"• 장비/기타: {cost.get('equipment', 0):,}원")
         doc.add_paragraph(f"• 총합: {cost.get('total', 0):,}원")
-        divider = doc.add_paragraph("━" * 40)
+        divider = doc.add_paragraph("━" * 35)
         divider.alignment = WD_ALIGN_PARAGRAPH.CENTER
         doc.add_paragraph("")
         if cost.get("breakdown"):
@@ -202,7 +203,8 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
         if contents:
             doc.add_paragraph("📚 학습 내용").bold = True
             for item in contents:
-                doc.add_paragraph(f"• {clean_text(item)}", style="List Bullet")
+                doc.add_paragraph(clean_text(item), style="List Bullet")
+            doc.add_paragraph("")
 
         # 참고 사이트
         sites = step.get("recommended_sites", [])
@@ -217,6 +219,7 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
                     add_hyperlink(para, name or url, url)
                 else:
                     para.add_run(name)
+            doc.add_paragraph("")
 
         # 투두리스트
         todos = normalize_learning_items(step.get("todos", []))
