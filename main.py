@@ -18,6 +18,7 @@ sys.path.insert(0, str(project_root))
 from tool.category_router import route_to_category_agent
 from utils.json_parser import parse_learning_guide
 from utils.word_generator import save_learning_guide_to_word
+from utils.date_validator import validate_and_fix_dates
 
 
 def load_env():
@@ -70,6 +71,8 @@ def create_learning_guide(topic: str, start_date: str = None) -> dict:
         parsed_guide = parse_learning_guide(result["raw_output"])
         if "error" not in parsed_guide:
             parsed_guide["category"] = result.get("category", "Unknown")
+            # 날짜 검증 및 수정
+            parsed_guide = validate_and_fix_dates(parsed_guide)
         return parsed_guide
     
     return result

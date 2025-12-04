@@ -71,6 +71,63 @@ def clean_json_string(json_str: str) -> str:
     return json_str.strip()
 
 
+def set_default_values(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    파싱된 JSON에 누락된 필드에 기본값 설정
+    
+    Args:
+        parsed: 파싱된 JSON 딕셔너리
+    
+    Returns:
+        기본값이 설정된 딕셔너리
+    """
+    from datetime import datetime
+    
+    # 기본값 설정
+    parsed.setdefault("topic", "학습 가이드")
+    parsed.setdefault("category", "Unknown")
+    parsed.setdefault("total_duration_days", 30)
+    
+    # 날짜 기본값
+    if "start_date" not in parsed:
+        parsed["start_date"] = datetime.now().strftime("%Y-%m-%d")
+    
+    # steps 기본값
+    if "steps" not in parsed:
+        parsed["steps"] = []
+    
+    # 각 단계에 기본값 설정
+    for i, step in enumerate(parsed.get("steps", []), 1):
+        step.setdefault("step_number", i)
+        step.setdefault("title", f"{i}단계")
+        step.setdefault("duration_days", 7)
+        step.setdefault("learning_content", [])
+        step.setdefault("recommended_books", [])
+        step.setdefault("recommended_sites", [])
+        step.setdefault("todos", [])
+        step.setdefault("estimated_cost", 0)
+    
+    # 비용 정보 기본값
+    if "estimated_cost" not in parsed:
+        parsed["estimated_cost"] = {
+            "books": 0,
+            "courses": 0,
+            "equipment": 0,
+            "total": 0
+        }
+    elif isinstance(parsed.get("estimated_cost"), dict):
+        cost = parsed["estimated_cost"]
+        cost.setdefault("books", 0)
+        cost.setdefault("courses", 0)
+        cost.setdefault("equipment", 0)
+        cost.setdefault("total", cost.get("books", 0) + cost.get("courses", 0) + cost.get("equipment", 0))
+    
+    # 후기 기본값
+    parsed.setdefault("reviews_summary", "후기 정보가 없습니다.")
+    
+    return parsed
+
+
 def parse_learning_guide(raw_output: str) -> Dict[str, Any]:
     """
     학습 가이드 출력을 파싱하여 구조화된 딕셔너리로 변환
@@ -88,6 +145,9 @@ def parse_learning_guide(raw_output: str) -> Dict[str, Any]:
             "error": "JSON 파싱 실패",
             "raw_output": raw_output
         }
+    
+    # 기본값 설정
+    parsed = set_default_values(parsed)
     
     return parsed
 
