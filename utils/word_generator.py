@@ -71,6 +71,9 @@ def save_learning_guide_to_word(guide: Dict[str, Any], filename: Optional[str] =
             cost_list = doc.add_paragraph(f"장비/기타: {cost.get('equipment', 0):,}원", style='List Bullet')
             total_para = doc.add_paragraph(f"총 예상 금액: {cost.get('total', 0):,}원")
             total_para.runs[0].bold = True
+
+
+            # uuyeong - 수정한 부분
             if cost.get("breakdown"):
                 doc.add_paragraph("", style='Normal')
                 doc.add_paragraph("세부 비용:", style='Heading 2')
