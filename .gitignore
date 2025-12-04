@@ -1,1 +1,9 @@
 .env
+*.pyc
+__pycache__/
+*.docx
+*.log
+.venv/
+venv/
+*.ipynb_checkpoints
+.DS_Store
